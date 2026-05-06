@@ -13,6 +13,14 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  auth: {
+    login: (credentials: { email: string; password: string }) =>
+      request<Employee>('/login', {
+        method: 'POST',
+        body: JSON.stringify(credentials),
+      }),
+  },
+
   employees: {
     list: () =>
       request<Employee[]>('/employees'),
@@ -32,6 +40,12 @@ export const api = {
       request<LeaveRequest>('/leave-requests', {
         method: 'POST',
         body: JSON.stringify(req),
+      }),
+    
+    updateStatus: (id: string, status: 'Approved' | 'Rejected') =>
+      request<LeaveRequest>(`/leave-requests/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
       }),
   },
 };

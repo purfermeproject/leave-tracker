@@ -6,6 +6,27 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// ── Auth ──────────────────────────────────────────────────────────────────────
+app.post('/api/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM employees WHERE email = $1 AND password = $2',
+      [email, password]
+    );
+    if (rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+    // In a real app, generate a JWT here. For this demo, return the user object.
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Health check ─────────────────────────────────────────────────────────────
 app.get('/api/health', async (_req, res) => {
   try {
@@ -29,15 +50,15 @@ app.get('/api/employees', async (_req, res) => {
 });
 
 app.post('/api/employees', async (req, res) => {
-  const { name, email, role, joining_date } = req.body;
+  const { name, email, role, joining_date, password } = req.body;
   if (!name || !email || !role || !joining_date) {
     return res.status(400).json({ error: 'name, email, role, joining_date are required' });
   }
   try {
     const { rows } = await pool.query(
-      `INSERT INTO employees (name, email, role, joining_date)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [name, email, role, joining_date]
+      `INSERT INTO employees (name, email, role, joining_date, password)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [name, email, role, joining_date, password || 'password123']
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -72,6 +93,26 @@ app.post('/api/leave-requests', async (req, res) => {
       [employee_id, type, start_date, end_date, status, reason || null]
     );
     res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/leave-requests/:id', async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  if (!status || !['Approved', 'Rejected'].includes(status)) {
+    return res.status(400).json({ error: 'Valid status (Approved or Rejected) is required' });
+  }
+  try {
+    const { rows } = await pool.query(
+      'UPDATE leave_requests SET status = $1 WHERE id = $2 RETURNING *',
+      [status, id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Leave request not found' });
+    }
+    res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

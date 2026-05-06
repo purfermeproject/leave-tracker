@@ -31,6 +31,7 @@ export interface Employee {
   email: string;
   joining_date: string; // date
   role: string;
+  password?: string;
 }
 
 export interface LeaveBalance {

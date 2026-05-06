@@ -3,10 +3,15 @@ import type { Employee, LeaveRequest } from './types';
 import { calculateBalances, calculateLeaveDuration } from './utils/leaveCalculations';
 import { HOLIDAYS_2026 } from './constants/holidays';
 import { api } from './services/api';
+import Login from './components/Login';
 
 type View = 'dashboard' | 'team';
 
 const App: React.FC = () => {
+  const [currentUser, setCurrentUser] = useState<Employee | null>(() => {
+    const saved = localStorage.getItem('leave_tracker_user');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
@@ -16,7 +21,13 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<View>('dashboard');
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    if (currentUser) {
+      fetchData();
+    } else {
+      setLoading(false);
+    }
+  }, [currentUser]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -27,13 +38,35 @@ const App: React.FC = () => {
         api.leaveRequests.list(),
       ]);
       setEmployees(emps);
-      if (emps.length > 0) setSelectedEmployeeId(emps[0].id);
+      
+      // If Admin, default to first employee or keep selection
+      // If Employee, force selection to self
+      if (currentUser?.role === 'Admin') {
+        if (!selectedEmployeeId && emps.length > 0) {
+          setSelectedEmployeeId(emps[0].id);
+        }
+      } else if (currentUser) {
+        setSelectedEmployeeId(currentUser.id);
+      }
+      
       setRequests(reqs);
     } catch (err: any) {
       setError(err.message || 'Cannot reach the server. Is it running?');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLogin = (user: Employee) => {
+    setCurrentUser(user);
+    localStorage.setItem('leave_tracker_user', JSON.stringify(user));
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem('leave_tracker_user');
+    setEmployees([]);
+    setRequests([]);
   };
 
   const addEmployee = async (emp: Omit<Employee, 'id'>) => {
@@ -49,11 +82,23 @@ const App: React.FC = () => {
 
   const addRequest = async (req: Omit<LeaveRequest, 'id' | 'applied_at'>) => {
     try {
-      const newReq = await api.leaveRequests.create(req);
+      const newReq = await api.leaveRequests.create({
+        ...req,
+        status: 'Pending' // All new requests start as Pending
+      });
       setRequests(prev => [...prev, newReq]);
       setShowLeaveForm(false);
     } catch (err: any) {
       alert(err.message || 'Failed to submit leave request.');
+    }
+  };
+
+  const updateRequestStatus = async (id: string, status: 'Approved' | 'Rejected') => {
+    try {
+      const updated = await api.leaveRequests.updateStatus(id, status);
+      setRequests(prev => prev.map(r => r.id === id ? updated : r));
+    } catch (err: any) {
+      alert(err.message || 'Failed to update request status.');
     }
   };
 
@@ -77,20 +122,8 @@ const App: React.FC = () => {
   }
 
   // ── DB / server error ─────────────────────────────────────────────────────
-  if (error) {
-    return (
-      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div className="glass-card" style={{ maxWidth: '480px', textAlign: 'center', padding: '3rem' }}>
-          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚠️</div>
-          <h2 style={{ marginBottom: '0.75rem', color: 'var(--danger)' }}>Server Unreachable</h2>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '0.75rem' }}>{error}</p>
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '2rem' }}>
-            Make sure PostgreSQL is running and the API server is started with <code style={{ background: 'hsla(222,47%,5%,0.6)', padding: '2px 6px', borderRadius: '4px' }}>npm run dev</code>.
-          </p>
-          <button className="btn-primary" onClick={fetchData}>Retry</button>
-        </div>
-      </div>
-    );
+  if (!currentUser) {
+    return <Login onLogin={handleLogin} />;
   }
 
   return (
@@ -102,21 +135,35 @@ const App: React.FC = () => {
           <h1 style={{ fontSize: '2.5rem', marginBottom: '0.5rem', background: 'linear-gradient(90deg, #fff, var(--primary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
             Leave Tracker
           </h1>
-          <p style={{ color: 'var(--text-muted)' }}>PurFerme Project • Team Portal</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <p style={{ color: 'var(--text-muted)' }}>{currentUser.role} Portal • {currentUser.name}</p>
+            <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.8rem', textDecoration: 'underline', padding: 0 }}>Logout</button>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <div className="tab-group">
             <button className={view === 'dashboard' ? 'tab-active' : 'tab'} onClick={() => setView('dashboard')}>Dashboard</button>
-            <button className={view === 'team' ? 'tab-active' : 'tab'} onClick={() => setView('team')}>
-              Team ({employees.length})
-            </button>
+            {currentUser.role === 'Admin' && (
+              <button className={view === 'team' ? 'tab-active' : 'tab'} onClick={() => setView('team')}>
+                Team ({employees.length})
+              </button>
+            )}
           </div>
-          <button className="btn-secondary" onClick={() => setShowMemberForm(true)}>+ Add Member</button>
-          {view === 'dashboard' && employees.length > 0 && (
+          {currentUser.role === 'Admin' && (
+            <button className="btn-secondary" onClick={() => setShowMemberForm(true)}>+ Add Member</button>
+          )}
+          {view === 'dashboard' && selectedEmployeeId && (
             <button className="btn-primary" onClick={() => setShowLeaveForm(true)}>+ Request Leave</button>
           )}
         </div>
       </header>
+
+      {error && (
+        <div style={{ background: 'hsla(0, 100%, 50%, 0.1)', color: 'var(--danger)', padding: '1rem', borderRadius: '12px', marginBottom: '2rem', border: '1px solid hsla(0, 100%, 50%, 0.2)' }}>
+          {error}
+          <button onClick={fetchData} style={{ marginLeft: '1rem', background: 'var(--danger)', color: '#fff', border: 'none', padding: '0.25rem 0.75rem', borderRadius: '4px', cursor: 'pointer' }}>Retry</button>
+        </div>
+      )}
 
       {/* ── Dashboard View ───────────────────────────────────────────────── */}
       {view === 'dashboard' && (
@@ -129,12 +176,16 @@ const App: React.FC = () => {
           ) : (
             <>
               <div style={{ marginBottom: '2rem' }}>
-                <label className="field-label">Viewing leave for</label>
-                <select value={selectedEmployeeId} onChange={e => setSelectedEmployeeId(e.target.value)} style={{ maxWidth: '320px' }}>
-                  {employees.map(e => (
-                    <option key={e.id} value={e.id}>{e.name} — {e.role}</option>
-                  ))}
-                </select>
+                <label className="field-label">{currentUser.role === 'Admin' ? 'Viewing leave for' : 'My Leave Dashboard'}</label>
+                {currentUser.role === 'Admin' ? (
+                  <select value={selectedEmployeeId} onChange={e => setSelectedEmployeeId(e.target.value)} style={{ maxWidth: '320px' }}>
+                    {employees.map(e => (
+                      <option key={e.id} value={e.id}>{e.name} — {e.role}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>{currentUser.name}</div>
+                )}
               </div>
 
               {selectedEmployee && (
@@ -228,6 +279,56 @@ const App: React.FC = () => {
       {/* ── Team View ────────────────────────────────────────────────────── */}
       {view === 'team' && (
         <section>
+          {/* Review Queue (Only for Admins) */}
+          {currentUser.role === 'Admin' && (
+            <div className="glass-card" style={{ marginBottom: '2.5rem', border: '1px solid var(--primary)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h2 style={{ fontSize: '1.25rem' }}>📋 Leave Review Queue</h2>
+                <span className="badge badge-pending">{requests.filter(r => r.status === 'Pending').length} Pending</span>
+              </div>
+              
+              {requests.filter(r => r.status === 'Pending').length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '1rem 0' }}>All clear! No pending leave requests.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {requests.filter(r => r.status === 'Pending').map(r => {
+                    const emp = employees.find(e => e.id === r.employee_id);
+                    return (
+                      <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'hsla(222, 47%, 5%, 0.3)', padding: '1rem', borderRadius: '12px', border: '1px solid hsla(222, 47%, 25%, 0.3)' }}>
+                        <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+                          <div className="avatar" style={{ width: '40px', height: '40px', fontSize: '0.8rem' }}>{emp?.name[0]}</div>
+                          <div>
+                            <h4 style={{ fontSize: '0.9rem', marginBottom: '0.2rem' }}>{emp?.name} — {r.type} Leave</h4>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              {new Date(r.start_date).toLocaleDateString()} to {new Date(r.end_date).toLocaleDateString()} 
+                              ({calculateLeaveDuration(r.start_date, r.end_date)} days)
+                            </p>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button 
+                            className="btn-secondary" 
+                            style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', background: 'var(--success)', borderColor: 'var(--success)' }}
+                            onClick={() => r.id && updateRequestStatus(r.id, 'Approved')}
+                          >
+                            Approve
+                          </button>
+                          <button 
+                            className="btn-ghost" 
+                            style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', color: 'var(--danger)' }}
+                            onClick={() => r.id && updateRequestStatus(r.id, 'Rejected')}
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
             <h2>Team Members</h2>
             <button className="btn-secondary" onClick={() => setShowMemberForm(true)}>+ Add Member</button>
@@ -284,6 +385,7 @@ const App: React.FC = () => {
                 email:        fd.get('email') as string,
                 role:         fd.get('role') as string,
                 joining_date: fd.get('joining_date') as string,
+                password:     fd.get('password') as string,
               });
             }}>
               <div style={{ marginBottom: '1.25rem' }}>
@@ -292,15 +394,19 @@ const App: React.FC = () => {
               </div>
               <div style={{ marginBottom: '1.25rem' }}>
                 <label className="field-label">Email Address</label>
-                <input type="email" name="email" placeholder="e.g. raj@purferme.com" required />
+                <input type="email" name="email" placeholder="e.g. raj@purfermeproject.com" required />
               </div>
               <div style={{ marginBottom: '1.25rem' }}>
                 <label className="field-label">Role / Designation</label>
                 <input type="text" name="role" placeholder="e.g. Software Engineer" required />
               </div>
-              <div style={{ marginBottom: '2rem' }}>
+              <div style={{ marginBottom: '1.25rem' }}>
                 <label className="field-label">Date of Joining</label>
                 <input type="date" name="joining_date" required defaultValue={new Date().toISOString().split('T')[0]} />
+              </div>
+              <div style={{ marginBottom: '2rem' }}>
+                <label className="field-label">Password</label>
+                <input type="text" name="password" placeholder="e.g. secret123" defaultValue="password123" required />
               </div>
               <div style={{ display: 'flex', gap: '1rem' }}>
                 <button type="button" className="btn-ghost" onClick={() => setShowMemberForm(false)} style={{ flex: 1 }}>Cancel</button>
