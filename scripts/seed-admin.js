@@ -29,8 +29,8 @@ const pool = process.env.DATABASE_URL
       password: process.env.PG_PASSWORD || '',
     });
 
-const name     = process.env.ADMIN_NAME     || 'Admin';
-const email    = process.env.ADMIN_EMAIL    || 'admin@company.com';
+const name     = process.env.ADMIN_NAME     || 'Abhinav';
+const email    = process.env.ADMIN_EMAIL    || 'abhinav@purfermeproject.com';
 const password = process.env.ADMIN_PASSWORD || 'ChangeMe123!';
 
 async function run() {

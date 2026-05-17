@@ -395,9 +395,14 @@ const App: React.FC = () => {
             <form onSubmit={async e => {
               e.preventDefault();
               const fd = new FormData(e.currentTarget);
+              const email = fd.get('email') as string;
+              if (!email.endsWith('@purfermeproject.com')) {
+                alert('Only @purfermeproject.com email addresses are allowed.');
+                return;
+              }
               await addEmployee({
                 name:         fd.get('name') as string,
-                email:        fd.get('email') as string,
+                email,
                 role:         fd.get('role') as string,
                 joining_date: fd.get('joining_date') as string,
                 password:     fd.get('password') as string,
@@ -409,7 +414,7 @@ const App: React.FC = () => {
               </div>
               <div style={{ marginBottom: '1.25rem' }}>
                 <label className="field-label">Email Address</label>
-                <input type="email" name="email" placeholder="e.g. raj@purfermeproject.com" required />
+                <input type="email" name="email" placeholder="e.g. raj@purfermeproject.com" pattern=".*@purfermeproject\.com" title="Only @purfermeproject.com emails allowed" required />
               </div>
               <div style={{ marginBottom: '1.25rem' }}>
                 <label className="field-label">Role / Designation</label>

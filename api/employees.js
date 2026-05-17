@@ -29,6 +29,9 @@ export default async function handler(req, res) {
     if (!name || !email || !role || !joining_date) {
       return res.status(400).json({ error: 'name, email, role, joining_date are required' });
     }
+    if (!email.endsWith('@purfermeproject.com')) {
+      return res.status(400).json({ error: 'Only @purfermeproject.com email addresses are allowed' });
+    }
     if (password && password.length < 8) {
       return res.status(400).json({ error: 'Password must be at least 8 characters' });
     }

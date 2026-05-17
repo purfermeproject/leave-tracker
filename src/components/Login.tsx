@@ -75,7 +75,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         </form>
 
         <p style={{ marginTop: '2rem', textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-          New employees are added by your Admin. Contact HR if you need access.
+          Use your @purfermeproject.com email to sign in. Contact Admin if you need access.
         </p>
       </div>
     </div>
