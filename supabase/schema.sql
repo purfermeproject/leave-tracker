@@ -8,6 +8,7 @@ create table if not exists employees (
   email        text        not null unique,
   role         text        not null default 'Employee',
   joining_date date        not null default current_date,
+  password     text        not null default 'password123',
   created_at   timestamptz not null default now()
 );
 
@@ -15,14 +16,10 @@ create table if not exists employees (
 create table if not exists leave_requests (
   id          uuid primary key default gen_random_uuid(),
   employee_id uuid        not null references employees(id) on delete cascade,
-  type        text        not null check (type in (
-                'Annual','Sick','Menstrual','Casual',
-                'Maternity','Paternity','Compassionate','Marriage'
-              )),
+  type        text        not null,
   start_date  date        not null,
-  end_date    date        not null check (end_date >= start_date),
-  status      text        not null default 'Pending'
-                          check (status in ('Pending','Approved','Rejected')),
+  end_date    date        not null,
+  status      text        not null default 'Pending',
   reason      text,
   applied_at  timestamptz not null default now()
 );

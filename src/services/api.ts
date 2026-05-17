@@ -3,9 +3,18 @@ import type { Employee, LeaveRequest } from '../types';
 const BASE = '/api';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = localStorage.getItem('leave_tracker_token');
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: { ...headers, ...options?.headers },
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || `Request failed: ${res.status}`);
@@ -15,7 +24,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 export const api = {
   auth: {
     login: (credentials: { email: string; password: string }) =>
-      request<Employee>('/login', {
+      request<{ user: Employee; token: string }>('/login', {
         method: 'POST',
         body: JSON.stringify(credentials),
       }),
@@ -26,9 +35,15 @@ export const api = {
       request<Employee[]>('/employees'),
 
     create: (emp: Omit<Employee, 'id'>) =>
-      request<Employee>('/employees', {
+      request<{ user: Employee; token: string }>('/employees', {
         method: 'POST',
         body: JSON.stringify(emp),
+      }),
+      
+    changePassword: (data: { currentPassword: string; newPassword: string }) =>
+      request<{ success: true; message: string }>('/employees/password', {
+        method: 'PATCH',
+        body: JSON.stringify(data),
       }),
   },
 

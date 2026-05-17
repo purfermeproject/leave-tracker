@@ -9,14 +9,16 @@ type View = 'dashboard' | 'team';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<Employee | null>(() => {
-    const saved = localStorage.getItem('leave_tracker_user');
-    return saved ? JSON.parse(saved) : null;
+    const savedUser = localStorage.getItem('leave_tracker_user');
+    const savedToken = localStorage.getItem('leave_tracker_token');
+    return (savedUser && savedToken) ? JSON.parse(savedUser) : null;
   });
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [showLeaveForm, setShowLeaveForm] = useState(false);
   const [showMemberForm, setShowMemberForm] = useState(false);
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<View>('dashboard');
@@ -57,26 +59,38 @@ const App: React.FC = () => {
     }
   };
 
-  const handleLogin = (user: Employee) => {
+  const handleLogin = (user: Employee, token: string) => {
     setCurrentUser(user);
     localStorage.setItem('leave_tracker_user', JSON.stringify(user));
+    localStorage.setItem('leave_tracker_token', token);
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
     localStorage.removeItem('leave_tracker_user');
+    localStorage.removeItem('leave_tracker_token');
     setEmployees([]);
     setRequests([]);
   };
 
   const addEmployee = async (emp: Omit<Employee, 'id'>) => {
     try {
-      const newEmp = await api.employees.create(emp);
-      setEmployees(prev => [...prev, newEmp]);
-      setSelectedEmployeeId(newEmp.id);
+      const { user } = await api.employees.create(emp);
+      setEmployees(prev => [...prev, user]);
+      if (user.id) setSelectedEmployeeId(user.id);
       setShowMemberForm(false);
     } catch (err: any) {
       alert(err.message || 'Failed to add member.');
+    }
+  };
+
+  const changePassword = async (currentPassword: string, newPassword: string) => {
+    try {
+      await api.employees.changePassword({ currentPassword, newPassword });
+      alert('Password updated successfully!');
+      setShowPasswordForm(false);
+    } catch (err: any) {
+      alert(err.message || 'Failed to change password.');
     }
   };
 
@@ -137,6 +151,7 @@ const App: React.FC = () => {
           </h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <p style={{ color: 'var(--text-muted)' }}>{currentUser.role} Portal • {currentUser.name}</p>
+            <button onClick={() => setShowPasswordForm(true)} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.8rem', textDecoration: 'underline', padding: 0 }}>Change Password</button>
             <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.8rem', textDecoration: 'underline', padding: 0 }}>Logout</button>
           </div>
         </div>
@@ -467,6 +482,33 @@ const App: React.FC = () => {
               <div style={{ display: 'flex', gap: '1rem' }}>
                 <button type="button" className="btn-ghost" onClick={() => setShowLeaveForm(false)} style={{ flex: 1 }}>Cancel</button>
                 <button type="submit" className="btn-primary" style={{ flex: 1 }}>Submit Request</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* ── Change Password Modal ────────────────────────────────────────── */}
+      {showPasswordForm && (
+        <div className="modal-backdrop">
+          <div className="glass-card animate-in modal-box">
+            <h2 style={{ marginBottom: '0.5rem' }}>Change Password</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>Enter your current password and a new password.</p>
+            <form onSubmit={async e => {
+              e.preventDefault();
+              const fd = new FormData(e.currentTarget);
+              await changePassword(fd.get('currentPassword') as string, fd.get('newPassword') as string);
+            }}>
+              <div style={{ marginBottom: '1.25rem' }}>
+                <label className="field-label">Current Password</label>
+                <input type="password" name="currentPassword" required />
+              </div>
+              <div style={{ marginBottom: '2rem' }}>
+                <label className="field-label">New Password</label>
+                <input type="password" name="newPassword" required />
+              </div>
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <button type="button" className="btn-ghost" onClick={() => setShowPasswordForm(false)} style={{ flex: 1 }}>Cancel</button>
+                <button type="submit" className="btn-primary" style={{ flex: 1 }}>Update Password</button>
               </div>
             </form>
           </div>

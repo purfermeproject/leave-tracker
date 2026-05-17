@@ -3,7 +3,7 @@ import { api } from '../services/api';
 import type { Employee } from '../types';
 
 interface LoginProps {
-  onLogin: (user: Employee) => void;
+  onLogin: (user: Employee, token: string) => void;
 }
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
@@ -22,17 +22,17 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     setError(null);
     try {
       if (isRegistering) {
-        const user = await api.employees.create({
+        const { user, token } = await api.employees.create({
           name,
           email,
           role,
           joining_date: joiningDate,
           password,
         });
-        onLogin(user);
+        onLogin(user, token);
       } else {
-        const user = await api.auth.login({ email, password });
-        onLogin(user);
+        const { user, token } = await api.auth.login({ email, password });
+        onLogin(user, token);
       }
     } catch (err: any) {
       setError(err.message || (isRegistering ? 'Registration failed' : 'Invalid email or password'));
