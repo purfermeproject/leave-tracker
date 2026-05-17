@@ -7,12 +7,8 @@ interface LoginProps {
 }
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('Employee');
-  const [joiningDate, setJoiningDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,21 +17,10 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     setLoading(true);
     setError(null);
     try {
-      if (isRegistering) {
-        const { user, token } = await api.employees.create({
-          name,
-          email,
-          role,
-          joining_date: joiningDate,
-          password,
-        });
-        onLogin(user, token);
-      } else {
-        const { user, token } = await api.auth.login({ email, password });
-        onLogin(user, token);
-      }
+      const { user, token } = await api.auth.login({ email, password });
+      onLogin(user, token);
     } catch (err: any) {
-      setError(err.message || (isRegistering ? 'Registration failed' : 'Invalid email or password'));
+      setError(err.message || 'Invalid email or password');
     } finally {
       setLoading(false);
     }
@@ -48,9 +33,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           <h1 style={{ fontSize: '2.5rem', marginBottom: '0.5rem', background: 'linear-gradient(90deg, #fff, var(--primary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
             Leave Tracker
           </h1>
-          <p style={{ color: 'var(--text-muted)' }}>
-            {isRegistering ? 'Create your account to get started' : 'Welcome back! Please login.'}
-          </p>
+          <p style={{ color: 'var(--text-muted)' }}>Welcome back! Please sign in to continue.</p>
         </div>
 
         {error && (
@@ -60,84 +43,40 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         )}
 
         <form onSubmit={handleSubmit}>
-          {isRegistering && (
-            <div style={{ marginBottom: '1.25rem' }}>
-              <label className="field-label">Full Name</label>
-              <input 
-                type="text" 
-                value={name} 
-                onChange={e => setName(e.target.value)} 
-                placeholder="e.g. Raj Patel" 
-                required 
-              />
-            </div>
-          )}
           <div style={{ marginBottom: '1.25rem' }}>
             <label className="field-label">Email Address</label>
-            <input 
-              type="email" 
-              value={email} 
-              onChange={e => setEmail(e.target.value)} 
-              placeholder="e.g. raj@purfermeproject.com" 
-              required 
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="you@company.com"
+              required
+              autoFocus
             />
           </div>
-          <div style={{ marginBottom: '1.25rem' }}>
+          <div style={{ marginBottom: '2rem' }}>
             <label className="field-label">Password</label>
-            <input 
-              type="password" 
-              value={password} 
-              onChange={e => setPassword(e.target.value)} 
-              placeholder="••••••••" 
-              required 
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
             />
           </div>
-          {isRegistering && (
-            <>
-              <div style={{ marginBottom: '1.25rem' }}>
-                <label className="field-label">Role</label>
-                <select value={role} onChange={e => setRole(e.target.value)}>
-                  <option value="Employee">Employee</option>
-                  <option value="Admin">Admin / HR</option>
-                </select>
-              </div>
-              <div style={{ marginBottom: '2rem' }}>
-                <label className="field-label">Date of Joining</label>
-                <input 
-                  type="date" 
-                  value={joiningDate} 
-                  onChange={e => setJoiningDate(e.target.value)} 
-                  required 
-                />
-              </div>
-            </>
-          )}
-          <button 
-            type="submit" 
-            className="btn-primary" 
-            style={{ width: '100%', padding: '1rem' }} 
+          <button
+            type="submit"
+            className="btn-primary"
+            style={{ width: '100%', padding: '1rem' }}
             disabled={loading}
           >
-            {loading ? 'Processing...' : (isRegistering ? 'Register' : 'Login')}
+            {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
 
-        <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
-          <button 
-            onClick={() => { setIsRegistering(!isRegistering); setError(null); }} 
-            style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.9rem', textDecoration: 'underline' }}
-          >
-            {isRegistering ? 'Already have an account? Login' : 'New here? Create an account'}
-          </button>
-        </div>
-
-        {!isRegistering && (
-          <div style={{ marginTop: '2rem', textAlign: 'center' }}>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Default Admin: abhinav@purfermeproject.com
-            </p>
-          </div>
-        )}
+        <p style={{ marginTop: '2rem', textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+          New employees are added by your Admin. Contact HR if you need access.
+        </p>
       </div>
     </div>
   );

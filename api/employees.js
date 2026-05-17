@@ -1,6 +1,6 @@
 import { getPool } from './_db.js';
 import bcrypt from 'bcryptjs';
-import { signToken, verifyToken } from './_auth.js';
+import { verifyToken } from './_auth.js';
 
 export default async function handler(req, res) {
   const pool = getPool();

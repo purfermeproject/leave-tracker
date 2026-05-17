@@ -9,7 +9,8 @@
     "client": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "seed": "node scripts/seed-admin.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

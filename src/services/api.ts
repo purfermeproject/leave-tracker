@@ -35,7 +35,7 @@ export const api = {
       request<Employee[]>('/employees'),
 
     create: (emp: Omit<Employee, 'id'>) =>
-      request<{ user: Employee; token: string }>('/employees', {
+      request<{ user: Employee }>('/employees', {
         method: 'POST',
         body: JSON.stringify(emp),
       }),
