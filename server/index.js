@@ -4,11 +4,42 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { pool } from './db.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-123';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable is not set.');
+  process.exit(1);
+}
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGIN || 'http://localhost:5173',
+  credentials: true,
+}));
 app.use(express.json());
+
+// ── Simple in-memory rate limiter for login ───────────────────────────────
+const loginAttempts = new Map();
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const RATE_LIMIT_MAX = 10;
+
+function loginRateLimiter(req, res, next) {
+  const key = req.ip;
+  const now = Date.now();
+  const entry = loginAttempts.get(key) || { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS };
+
+  if (now > entry.resetAt) {
+    entry.count = 0;
+    entry.resetAt = now + RATE_LIMIT_WINDOW_MS;
+  }
+
+  entry.count += 1;
+  loginAttempts.set(key, entry);
+
+  if (entry.count > RATE_LIMIT_MAX) {
+    return res.status(429).json({ error: 'Too many login attempts. Please try again later.' });
+  }
+  next();
+}
 
 // ── Middleware ─────────────────────────────────────────────────────────────
 const authenticateToken = (req, res, next) => {
@@ -25,7 +56,7 @@ const authenticateToken = (req, res, next) => {
 };
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', loginRateLimiter, async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
@@ -80,6 +111,9 @@ app.patch('/api/employees/password', authenticateToken, async (req, res) => {
   if (!currentPassword || !newPassword) {
     return res.status(400).json({ error: 'currentPassword and newPassword are required' });
   }
+  if (newPassword.length < 8) {
+    return res.status(400).json({ error: 'New password must be at least 8 characters' });
+  }
 
   try {
     const { rows } = await pool.query('SELECT password FROM employees WHERE id = $1', [userId]);
@@ -112,10 +146,17 @@ app.get('/api/employees', authenticateToken, async (_req, res) => {
   }
 });
 
-app.post('/api/employees', async (req, res) => {
+app.post('/api/employees', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'Admin') {
+    return res.status(403).json({ error: 'Forbidden: Only Admins can add employees' });
+  }
+
   const { name, email, role, joining_date, password } = req.body;
   if (!name || !email || !role || !joining_date) {
     return res.status(400).json({ error: 'name, email, role, joining_date are required' });
+  }
+  if (password && password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters' });
   }
   try {
     const hashedPassword = await bcrypt.hash(password || 'password123', 10);
@@ -124,14 +165,7 @@ app.post('/api/employees', async (req, res) => {
        VALUES ($1, $2, $3, $4, $5) RETURNING id, name, email, role, joining_date`,
       [name, email, role, joining_date, hashedPassword]
     );
-    
-    const user = rows[0];
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-    res.status(201).json({ user, token });
+    res.status(201).json({ user: rows[0] });
   } catch (err) {
     if (err.code === '23505') {
       return res.status(409).json({ error: 'Email already exists' });
@@ -153,9 +187,8 @@ app.get('/api/leave-requests', authenticateToken, async (_req, res) => {
 });
 
 app.post('/api/leave-requests', authenticateToken, async (req, res) => {
-  const { employee_id, type, start_date, end_date, status = 'Pending', reason } = req.body;
-  
-  // Security check: Employees should only submit for themselves unless they are Admin
+  const { employee_id, type, start_date, end_date, reason } = req.body;
+
   if (req.user.role !== 'Admin' && req.user.id !== employee_id) {
     return res.status(403).json({ error: 'Forbidden: You can only submit your own leave requests' });
   }
@@ -163,6 +196,14 @@ app.post('/api/leave-requests', authenticateToken, async (req, res) => {
   if (!employee_id || !type || !start_date || !end_date) {
     return res.status(400).json({ error: 'employee_id, type, start_date, end_date are required' });
   }
+
+  if (new Date(end_date) < new Date(start_date)) {
+    return res.status(400).json({ error: 'end_date must be on or after start_date' });
+  }
+
+  // Non-admins always submit as Pending; admins can set any status
+  const status = req.user.role === 'Admin' ? (req.body.status || 'Pending') : 'Pending';
+
   try {
     const { rows } = await pool.query(
       `INSERT INTO leave_requests (employee_id, type, start_date, end_date, status, reason)

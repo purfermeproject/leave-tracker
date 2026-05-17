@@ -421,7 +421,7 @@ const App: React.FC = () => {
               </div>
               <div style={{ marginBottom: '2rem' }}>
                 <label className="field-label">Password</label>
-                <input type="text" name="password" placeholder="e.g. secret123" defaultValue="password123" required />
+                <input type="password" name="password" placeholder="Min. 8 characters" defaultValue="" required minLength={8} />
               </div>
               <div style={{ display: 'flex', gap: '1rem' }}>
                 <button type="button" className="btn-ghost" onClick={() => setShowMemberForm(false)} style={{ flex: 1 }}>Cancel</button>
@@ -443,12 +443,18 @@ const App: React.FC = () => {
             <form onSubmit={async e => {
               e.preventDefault();
               const fd = new FormData(e.currentTarget);
+              const start_date = fd.get('start_date') as string;
+              const end_date = fd.get('end_date') as string;
+              if (new Date(end_date) < new Date(start_date)) {
+                alert('End date must be on or after start date.');
+                return;
+              }
               await addRequest({
                 employee_id: selectedEmployeeId,
                 type:        fd.get('type') as any,
-                start_date:  fd.get('start_date') as string,
-                end_date:    fd.get('end_date') as string,
-                status:      'Approved',
+                start_date,
+                end_date,
+                status:      'Pending',
                 reason:      fd.get('reason') as string,
               });
             }}>

@@ -17,9 +17,8 @@ export default async function handler(req, res) {
     }
 
   } else if (req.method === 'POST') {
-    const { employee_id, type, start_date, end_date, status = 'Pending', reason } = req.body;
-    
-    // Authorization check
+    const { employee_id, type, start_date, end_date, reason } = req.body;
+
     if (user.role !== 'Admin' && user.id !== employee_id) {
       return res.status(403).json({ error: 'Forbidden: You can only submit your own requests' });
     }
@@ -27,6 +26,14 @@ export default async function handler(req, res) {
     if (!employee_id || !type || !start_date || !end_date) {
       return res.status(400).json({ error: 'employee_id, type, start_date, end_date are required' });
     }
+
+    if (new Date(end_date) < new Date(start_date)) {
+      return res.status(400).json({ error: 'end_date must be on or after start_date' });
+    }
+
+    // Non-admins always submit as Pending
+    const status = user.role === 'Admin' ? (req.body.status || 'Pending') : 'Pending';
+
     try {
       const { rows } = await pool.query(
         `INSERT INTO leave_requests (employee_id, type, start_date, end_date, status, reason)
