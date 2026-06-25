@@ -1,8 +1,7 @@
 /**
- * Seeds the admin user into your Google Sheet.
- * Edit the values below, then run: node scripts/seed-admin.js
+ * Generates the admin row to paste into your Google Sheet, OR seeds via Apps Script URL.
+ * Usage: node scripts/seed-admin.js
  */
-import { google } from 'googleapis';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 import dotenv from 'dotenv';
@@ -17,35 +16,33 @@ const ADMIN = {
 };
 
 async function seed() {
-  const auth = new google.auth.GoogleAuth({
-    credentials: {
-      client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    },
-    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-  });
-
-  const sheets = google.sheets({ version: 'v4', auth });
   const hashedPassword = await bcrypt.hash(ADMIN.password, 10);
+  const row = {
+    id: randomUUID(),
+    name: ADMIN.name,
+    email: ADMIN.email,
+    role: ADMIN.role,
+    joining_date: ADMIN.joining_date,
+    password: hashedPassword,
+    created_at: new Date().toISOString(),
+  };
 
-  const row = [
-    randomUUID(),
-    ADMIN.name,
-    ADMIN.email,
-    ADMIN.role,
-    ADMIN.joining_date,
-    hashedPassword,
-    new Date().toISOString(),
-  ];
-
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: process.env.GOOGLE_SHEET_ID,
-    range: 'Employees!A1',
-    valueInputOption: 'RAW',
-    requestBody: { values: [row] },
-  });
-
-  console.log(`Admin user seeded: ${ADMIN.email} / ${ADMIN.password}`);
+  if (process.env.GOOGLE_APPS_SCRIPT_URL) {
+    const res = await fetch(process.env.GOOGLE_APPS_SCRIPT_URL, {
+      method: 'POST',
+      redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'appendRow', sheet: 'Employees', data: row }),
+    });
+    const result = await res.json();
+    if (result.error) throw new Error(result.error);
+    console.log(`✓ Admin seeded via Apps Script: ${ADMIN.email} / ${ADMIN.password}`);
+  } else {
+    console.log('No GOOGLE_APPS_SCRIPT_URL found. Paste this row manually into your Employees sheet:\n');
+    console.log(Object.values(row).join('\t'));
+    console.log('\nColumns: id | name | email | role | joining_date | password | created_at');
+    console.log(`\nLogin: ${ADMIN.email} / ${ADMIN.password}`);
+  }
 }
 
 seed().catch(err => { console.error(err.message); process.exit(1); });
