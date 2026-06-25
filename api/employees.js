@@ -1,19 +1,16 @@
-import { getPool } from './_db.js';
 import bcrypt from 'bcryptjs';
+import { getRows, appendRow, EMPLOYEE_HEADERS, randomUUID } from './_sheets.js';
 import { signToken, verifyToken } from './_auth.js';
 
 export default async function handler(req, res) {
-  const pool = getPool();
-
   if (req.method === 'GET') {
     const user = verifyToken(req, res);
-    if (!user) return; // verifyToken already sent 401/403
+    if (!user) return;
 
     try {
-      const { rows } = await pool.query(
-        'SELECT id, name, email, role, joining_date, created_at FROM employees ORDER BY created_at ASC'
-      );
-      res.json(rows);
+      const rows = await getRows('Employees');
+      const safe = rows.map(({ password: _pw, ...e }) => e);
+      res.json(safe);
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -23,20 +20,29 @@ export default async function handler(req, res) {
     if (!name || !email || !role || !joining_date) {
       return res.status(400).json({ error: 'name, email, role, joining_date are required' });
     }
-    
+
     try {
+      const existing = await getRows('Employees');
+      if (existing.find(e => e.email === email)) {
+        return res.status(409).json({ error: 'Email already exists' });
+      }
+
       const hashedPassword = await bcrypt.hash(password || 'password123', 10);
-      const { rows } = await pool.query(
-        `INSERT INTO employees (name, email, role, joining_date, password)
-         VALUES ($1, $2, $3, $4, $5) RETURNING id, name, email, role, joining_date`,
-        [name, email, role, joining_date, hashedPassword]
-      );
-      
-      const newEmp = rows[0];
+      const newEmp = {
+        id: randomUUID(),
+        name,
+        email,
+        role,
+        joining_date,
+        password: hashedPassword,
+        created_at: new Date().toISOString(),
+      };
+
+      await appendRow('Employees', newEmp, EMPLOYEE_HEADERS);
       const token = signToken(newEmp);
-      res.status(201).json({ user: newEmp, token });
+      const { password: _pw, ...safeUser } = newEmp;
+      res.status(201).json({ user: safeUser, token });
     } catch (err) {
-      if (err.code === '23505') return res.status(409).json({ error: 'Email already exists' });
       res.status(500).json({ error: err.message });
     }
 

@@ -1,4 +1,4 @@
-import { getPool } from '../_db.js';
+import { updateRowById, LEAVE_HEADERS } from '../_sheets.js';
 import { verifyToken } from '../_auth.js';
 
 export default async function handler(req, res) {
@@ -6,7 +6,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const pool = getPool();
   const user = verifyToken(req, res);
   if (!user) return;
 
@@ -22,14 +21,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { rows } = await pool.query(
-      'UPDATE leave_requests SET status = $1 WHERE id = $2 RETURNING *',
-      [status, id]
-    );
-    if (rows.length === 0) {
-      return res.status(404).json({ error: 'Leave request not found' });
-    }
-    res.json(rows[0]);
+    const updated = await updateRowById('LeaveRequests', id, { status }, LEAVE_HEADERS);
+    if (!updated) return res.status(404).json({ error: 'Leave request not found' });
+    res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
