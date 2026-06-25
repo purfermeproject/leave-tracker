@@ -230,7 +230,7 @@ const App: React.FC = () => {
                   <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
                     {/* Leave history */}
                     <section className="glass-card">
-                      <h2 style={{ marginBottom: '1.5rem' }}>Leave History — {selectedEmployee.name}</h2>
+                      <h2 style={{ marginBottom: '1.5rem' }}>Leave History — {currentUser?.role === 'Admin' ? selectedEmployee.name : currentUser?.name}</h2>
                       {employeeRequests.length === 0 ? (
                         <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem 0' }}>No leave requests yet.</p>
                       ) : (
