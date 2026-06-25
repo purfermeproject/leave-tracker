@@ -183,6 +183,21 @@ const App: React.FC = () => {
       {/* ── Dashboard View ───────────────────────────────────────────────── */}
       {view === 'dashboard' && (
         <>
+          {/* Pending requests alert for Admin */}
+          {currentUser.role === 'Admin' && requests.filter(r => r.status === 'Pending').length > 0 && (
+            <div style={{ background: 'hsla(38, 100%, 50%, 0.08)', border: '1px solid hsla(38, 100%, 50%, 0.3)', borderRadius: '12px', padding: '1rem 1.5rem', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <span style={{ fontSize: '1.25rem' }}>🔔</span>
+                <span style={{ color: 'var(--text)', fontWeight: '600' }}>
+                  {requests.filter(r => r.status === 'Pending').length} leave request{requests.filter(r => r.status === 'Pending').length > 1 ? 's' : ''} pending approval
+                </span>
+              </div>
+              <button className="btn-primary" style={{ fontSize: '0.85rem', padding: '0.4rem 1rem' }} onClick={() => setView('team')}>
+                Review Now →
+              </button>
+            </div>
+          )}
+
           {employees.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '5rem 0', color: 'var(--text-muted)' }}>
               <p style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>No team members yet. Add your first member to get started.</p>
