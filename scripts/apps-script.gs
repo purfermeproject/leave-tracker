@@ -1,7 +1,6 @@
 // Leave Tracker — Google Apps Script
 // Paste this into: Extensions → Apps Script → Code.gs
-// Then: Deploy → New Deployment → Web App → Anyone → Deploy
-// Copy the Web App URL and set it as GOOGLE_APPS_SCRIPT_URL in Vercel
+// Then: Deploy → Manage Deployments → edit Version 1 → Save new version → Done
 
 const SS = SpreadsheetApp.getActiveSpreadsheet();
 
@@ -11,6 +10,7 @@ function doGet(e) {
     const sheet  = e.parameter.sheet;
     if (action === 'getRows') return json(getRows(sheet));
     if (action === 'health')  return json({ ok: true });
+    if (action === 'setup')   return json(setup());
     return json({ error: 'Unknown action' });
   } catch (err) {
     return json({ error: err.message });
@@ -19,13 +19,30 @@ function doGet(e) {
 
 function doPost(e) {
   try {
-    const body    = JSON.parse(e.postData.contents);
+    const body = JSON.parse(e.postData.contents);
     const { action, sheet, data, id, updates } = body;
-    if (action === 'appendRow')  return json(appendRow(sheet, data));
-    if (action === 'updateRow')  return json(updateRow(sheet, id, updates));
+    if (action === 'appendRow') return json(appendRow(sheet, data));
+    if (action === 'updateRow') return json(updateRow(sheet, id, updates));
     return json({ error: 'Unknown action' });
   } catch (err) {
     return json({ error: err.message });
+  }
+}
+
+// ── Setup (run once) ──────────────────────────────────────────────────────────
+
+function setup() {
+  ensureSheet('Employees',     ['id','name','email','role','joining_date','password','created_at']);
+  ensureSheet('LeaveRequests', ['id','employee_id','type','start_date','end_date','status','reason','applied_at']);
+  return { ok: true, message: 'Sheets initialized' };
+}
+
+function ensureSheet(name, headers) {
+  let s = SS.getSheetByName(name);
+  if (!s) s = SS.insertSheet(name);
+  // Only write headers if the sheet is empty
+  if (s.getLastRow() === 0) {
+    s.getRange(1, 1, 1, headers.length).setValues([headers]);
   }
 }
 
@@ -46,7 +63,7 @@ function getRows(sheetName) {
 
 function appendRow(sheetName, data) {
   const s = SS.getSheetByName(sheetName);
-  if (!s) throw new Error(`Sheet "${sheetName}" not found`);
+  if (!s) throw new Error(`Sheet "${sheetName}" not found — run setup first`);
   const headers = s.getRange(1, 1, 1, s.getLastColumn()).getValues()[0];
   const row = headers.map(h => data[h] !== undefined ? data[h] : '');
   s.appendRow(row);
