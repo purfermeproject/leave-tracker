@@ -15,7 +15,16 @@ async function call(method, params) {
       body: JSON.stringify(params),
     });
   }
-  return res.json();
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    // If we got HTML it usually means the Apps Script requires auth
+    if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+      throw new Error('Apps Script returned an HTML login page. Please redeploy with "Who has access: Anyone" (no Google account required).');
+    }
+    throw new Error(`Apps Script returned unexpected response: ${text.slice(0, 300)}`);
+  }
 }
 
 export async function getRows(sheetName) {
