@@ -6,23 +6,22 @@ const SS = SpreadsheetApp.getActiveSpreadsheet();
 
 function doGet(e) {
   try {
-    const action = e.parameter.action;
-    const sheet  = e.parameter.sheet;
-    if (action === 'getRows') return json(getRows(sheet));
-    if (action === 'health')  return json({ ok: true });
-    if (action === 'setup')   return json(setup());
-    return json({ error: 'Unknown action' });
-  } catch (err) {
-    return json({ error: err.message });
-  }
-}
+    let action, sheet, data, id, updates;
 
-function doPost(e) {
-  try {
-    const body = JSON.parse(e.postData.contents);
-    const { action, sheet, data, id, updates } = body;
-    if (action === 'appendRow') return json(appendRow(sheet, data));
-    if (action === 'updateRow') return json(updateRow(sheet, id, updates));
+    if (e.parameter.payload) {
+      // All requests now use base64-encoded payload to avoid POST→GET redirect issues
+      const decoded = Utilities.newBlob(Utilities.base64Decode(e.parameter.payload)).getDataAsString();
+      ({ action, sheet, data, id, updates } = JSON.parse(decoded));
+    } else {
+      action = e.parameter.action;
+      sheet  = e.parameter.sheet;
+    }
+
+    if (action === 'getRows')    return json(getRows(sheet));
+    if (action === 'appendRow')  return json(appendRow(sheet, data));
+    if (action === 'updateRow')  return json(updateRow(sheet, id, updates));
+    if (action === 'health')     return json({ ok: true });
+    if (action === 'setup')      return json(setup());
     return json({ error: 'Unknown action' });
   } catch (err) {
     return json({ error: err.message });
