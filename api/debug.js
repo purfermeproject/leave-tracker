@@ -3,16 +3,29 @@ export default async function handler(req, res) {
   if (!url) return res.json({ error: 'GOOGLE_APPS_SCRIPT_URL not set' });
 
   try {
-    const testUrl = `${url}?action=health`;
-    const response = await fetch(testUrl, {
-      redirect: 'follow',
-      headers: { 'User-Agent': 'Mozilla/5.0' },
-    });
+    // Test a real appendRow call the same way _sheets.js does it
+    const params = {
+      action: 'appendRow',
+      sheet: 'LeaveRequests',
+      data: {
+        id: 'debug-test-' + Date.now(),
+        employee_id: 'debug-employee',
+        type: 'Annual',
+        start_date: '2025-01-01',
+        end_date: '2025-01-02',
+        status: 'Pending',
+        reason: 'debug test - safe to delete',
+        applied_at: new Date().toISOString(),
+      },
+    };
+    const payload = Buffer.from(JSON.stringify(params)).toString('base64');
+    const testUrl = `${url}?payload=${encodeURIComponent(payload)}`;
 
+    const response = await fetch(testUrl, { redirect: 'follow' });
     const text = await response.text();
+
     res.json({
       status: response.status,
-      contentType: response.headers.get('content-type'),
       url: response.url,
       bodyPreview: text.slice(0, 500),
       isHTML: text.includes('<!DOCTYPE') || text.includes('<html'),
