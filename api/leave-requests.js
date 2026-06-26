@@ -1,8 +1,40 @@
 import { getRows, appendRow, LEAVE_HEADERS, randomUUID } from './_sheets.js';
 import { verifyToken } from './_auth.js';
+import { Resend } from 'resend';
 
 function toIST(date) {
   return new Date(date).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+}
+
+async function notifyAdmins(employees, leave) {
+  const resendKey = process.env.RESEND_API_KEY;
+  if (!resendKey) return;
+
+  const resend = new Resend(resendKey);
+  const admins = employees.filter(e => e.role === 'Admin');
+  const appUrl = process.env.APP_URL || 'https://leave-tracker-20.vercel.app';
+
+  for (const admin of admins) {
+    await resend.emails.send({
+      from: 'Leave Tracker <onboarding@resend.dev>',
+      to: admin.email,
+      subject: `New Leave Request from ${leave.employee_name}`,
+      html: `
+        <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;background:#f9f9f9;border-radius:8px">
+          <h2 style="color:#1a1a2e">New Leave Request</h2>
+          <p><strong>Employee:</strong> ${leave.employee_name}</p>
+          <p><strong>Type:</strong> ${leave.type} Leave</p>
+          <p><strong>From:</strong> ${leave.start_date}</p>
+          <p><strong>To:</strong> ${leave.end_date}</p>
+          <p><strong>Reason:</strong> ${leave.reason || '—'}</p>
+          <p><strong>Applied at:</strong> ${leave.applied_at} IST</p>
+          <a href="${appUrl}" style="display:inline-block;margin-top:16px;padding:10px 20px;background:#6c63ff;color:#fff;border-radius:6px;text-decoration:none">
+            Review in Leave Tracker →
+          </a>
+        </div>
+      `,
+    });
+  }
 }
 
 export default async function handler(req, res) {
@@ -44,7 +76,12 @@ export default async function handler(req, res) {
         reason: reason || '',
         applied_at: toIST(new Date()),
       };
+
       await appendRow('LeaveRequests', newLeave, LEAVE_HEADERS);
+
+      // Send email to all admins (non-blocking — don't fail the request if email fails)
+      notifyAdmins(employees, newLeave).catch(err => console.error('Email error:', err));
+
       res.status(201).json(newLeave);
     } catch (err) {
       res.status(500).json({ error: err.message });
