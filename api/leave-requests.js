@@ -61,7 +61,26 @@ export default async function handler(req, res) {
     }
 
     try {
-      const employees = await getRows('Employees');
+      const [employees, existingLeaves] = await Promise.all([
+        getRows('Employees'),
+        getRows('LeaveRequests'),
+      ]);
+
+      // Check for overlapping approved leaves
+      const reqStart = new Date(start_date);
+      const reqEnd = new Date(end_date);
+      const overlap = existingLeaves.find(l =>
+        l.employee_id === employee_id &&
+        l.status === 'Approved' &&
+        new Date(l.start_date) <= reqEnd &&
+        new Date(l.end_date) >= reqStart
+      );
+      if (overlap) {
+        return res.status(409).json({
+          error: `You already have an approved ${overlap.type} leave from ${overlap.start_date} to ${overlap.end_date} that overlaps with your request.`,
+        });
+      }
+
       const emp = employees.find(e => e.id === employee_id);
       const employee_name = emp ? emp.name : '';
 
