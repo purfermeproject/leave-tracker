@@ -32,7 +32,7 @@ function doGet(e) {
 
 function setup() {
   ensureSheet('Employees',     ['id','name','email','role','joining_date','password','created_at']);
-  ensureSheet('LeaveRequests', ['id','employee_id','type','start_date','end_date','status','reason','applied_at']);
+  ensureSheet('LeaveRequests', ['id','employee_name','employee_id','type','start_date','end_date','status','reason','applied_at']);
   return { ok: true, message: 'Sheets initialized' };
 }
 

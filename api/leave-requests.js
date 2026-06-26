@@ -1,6 +1,10 @@
 import { getRows, appendRow, LEAVE_HEADERS, randomUUID } from './_sheets.js';
 import { verifyToken } from './_auth.js';
 
+function toIST(date) {
+  return new Date(date).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+}
+
 export default async function handler(req, res) {
   const user = verifyToken(req, res);
   if (!user) return;
@@ -25,15 +29,20 @@ export default async function handler(req, res) {
     }
 
     try {
+      const employees = await getRows('Employees');
+      const emp = employees.find(e => e.id === employee_id);
+      const employee_name = emp ? emp.name : '';
+
       const newLeave = {
         id: randomUUID(),
         employee_id,
+        employee_name,
         type,
         start_date,
         end_date,
         status,
         reason: reason || '',
-        applied_at: new Date().toISOString(),
+        applied_at: toIST(new Date()),
       };
       await appendRow('LeaveRequests', newLeave, LEAVE_HEADERS);
       res.status(201).json(newLeave);
